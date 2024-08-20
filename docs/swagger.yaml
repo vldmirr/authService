@@ -1,0 +1,151 @@
+basePath: /
+definitions:
+  auth.Request:
+    properties:
+      GUID:
+        type: string
+    required:
+    - GUID
+    type: object
+  auth.Response:
+    properties:
+      access_token:
+        type: string
+      error:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+  refresh.Request:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+    required:
+    - access_token
+    - refresh_token
+    type: object
+  refresh.Response:
+    properties:
+      access_token:
+        type: string
+      error:
+        type: string
+      refresh_token:
+        type: string
+    type: object
+  user.Request:
+    properties:
+      access_token_lifetime_minutes:
+        type: integer
+      email:
+        type: string
+      max_active_token_pairs:
+        type: integer
+      name:
+        type: string
+      refresh_token_lifetime_minutes:
+        type: integer
+    required:
+    - email
+    - name
+    type: object
+  user.Response:
+    properties:
+      GUID:
+        type: string
+      error:
+        type: string
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  title: authService API
+  version: "1.1"
+paths:
+  /auth:
+    post:
+      consumes:
+      - application/json
+      description: Returns a new access and refresh token pair
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.Request'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/auth.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/auth.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/auth.Response'
+      summary: Create new token pair
+  /refresh:
+    post:
+      consumes:
+      - application/json
+      description: Returns a new access token
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/refresh.Request'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/refresh.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/refresh.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/refresh.Response'
+      summary: Refresh access token
+  /users:
+    post:
+      consumes:
+      - application/json
+      description: Returns a new user GUID
+      parameters:
+      - description: Request
+        in: body
+        name: Request
+        required: true
+        schema:
+          $ref: '#/definitions/user.Request'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/user.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/user.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/user.Response'
+      summary: Create a new user
+swagger: "2.0"

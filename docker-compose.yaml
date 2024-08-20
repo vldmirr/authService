@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  postgresql:
+    image: postgres:latest
+    container_name: postgres_container
+    environment:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: authenticationService
+    ports:
+      - "5432:5432"
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    restart: unless-stopped
+    working_dir: /app
+    build: .
+    container_name: go_container
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    #environment:
+    depends_on:
+      postgresql:
+        condition: service_healthy

@@ -1,0 +1,17 @@
+env: "local" # local, dev, prod
+private_key: "secretpassword12345"
+storage:
+  POSTGRES_HOST: "postgresql"
+  POSTGRES_PORT: 5432
+  POSTGRES_USER: "postgres"
+  POSTGRES_PASSWORD: "password"
+  POSTGRES_DB: "authenticationService"
+http_server:
+  address: "0.0.0.0:8000"
+smtp:
+  is_enabled: true
+  host: "in-v3.mailjet.com"
+  port: "587"
+  mailjet_public_key: ""
+  mailjet_private_key: ""
+  mailjet_sender_email: ""
