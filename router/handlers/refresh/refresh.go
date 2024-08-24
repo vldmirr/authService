@@ -3,13 +3,13 @@ package refresh
 import (
 	"authenticationService/app"
 	jwtlib "authenticationService/jwt"
-	"authenticationService/logger"
+	//"authenticationService/logger"
 	"authenticationService/models"
 	smtplib "authenticationService/smtp"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log/slog"
+	//"log/slog"
 	"net/http"
 	"time"
 
@@ -43,16 +43,16 @@ func New(a app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const name_process = "handlers.auth.New"
 
-		log := a.Logger.With(
-			slog.String("handler", "refresh"),
-			slog.String("op", name_process),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
+		log := a.Logger.With().
+			Str("handler", "createUser").
+			Str("name_process", name_process).
+			Str("request_id", middleware.GetReqID(r.Context())).
+			Logger()
 
 		var req Request
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			log.Error("failed to decode request", logger.Err(err))
+			log.Error().Err(err).Msg("failed to decode request")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -63,10 +63,10 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("request decoded", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("request decoded")
 
 		if err := validator.New().Struct(req); err != nil {
-			log.Error("failed to validate request", logger.Err(err))
+			log.Error().Err(err).Msg("failed to validate request")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -77,11 +77,11 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("request validated", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("request validated")
 
 		decodedRefreshTokenBytes, err := base64.StdEncoding.DecodeString(req.RefreshToken)
 		if err != nil {
-			log.Error("failed to decode refresh token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to decode refresh token")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -96,7 +96,7 @@ func New(a app.App) http.HandlerFunc {
 
 		// Проверяем, что последние 7 символов у refresh и access токенов совпадают
 		if req.AccessToken[len(req.AccessToken)-7:] != decodedRefreshToken[len(decodedRefreshToken)-7:] {
-			log.Error("access token and refresh token do not match")
+			log.Error().Err(err).Msg("access token and refresh token do not match")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -107,11 +107,11 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("access token and refresh token match checked", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("access token and refresh token match checked")
 
 		decodedAccessToken, err := jwtlib.ValidateToken(a.Config.PrivateKey, req.AccessToken)
 		if err != nil {
-			log.Error("failed to validate access token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to validate access token")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -122,14 +122,14 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("access token validated", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("access token validated")
 
 		claims := decodedAccessToken.Claims.(*jwtlib.JWTClaims)
 
 		// Проверяем что access токен истек
 		t1 := time.Now()
 		if t1.Before(claims.ExpiresAt) {
-			log.Error("access token is not expired")
+			log.Error().Msg("access token is not expired")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -140,13 +140,13 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("access token expire checked", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("access token expire checked")
 
 		// Проверяем, что refresh токен не истек
 		pair, err := a.Storage.GetTokenByJTI(claims.ID)
 		fmt.Println(claims.ID)
 		if err != nil {
-			log.Error("failed to get token by JTI", logger.Err(err))
+			log.Error().Err(err).Msg("failed to get token by JTI")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -158,7 +158,7 @@ func New(a app.App) http.HandlerFunc {
 		}
 
 		if pair.RefreshTokenExpiresAt.Before(t1) {
-			log.Error("refresh token is expired")
+			log.Error().Msg("refresh token is expired")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -169,11 +169,11 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("refresh token expire time checked", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("refresh token expire time checked")
 
 		// Проверяем, что refresh токен не использован ранее
 		if pair.RefreshTokenStatus == "used" {
-			log.Error("refresh token is already used")
+			log.Error().Msg("refresh token is already used")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -184,12 +184,12 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("refresh token status checked", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("refresh token status checked")
 
 		// Создаем новую пару токенов
 		user, err := a.Storage.GetUserByID(pair.UserID)
 		if err != nil {
-			log.Error("failed to get user by ID", logger.Err(err))
+			log.Error().Err(err).Msg("failed to get user by ID")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -203,7 +203,7 @@ func New(a app.App) http.HandlerFunc {
 		newToken := jwtlib.NewJWT(r.RemoteAddr, t1.Add(time.Duration(user.AccessTokenLifetimeMinutes)*time.Minute))
 		signedToken, err := newToken.SignedString([]byte(a.Config.PrivateKey))
 		if err != nil {
-			log.Error("failed to sign access token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to sign access token")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -216,7 +216,7 @@ func New(a app.App) http.HandlerFunc {
 
 		refreshToken, err := jwtlib.GenerateRefreshToken(signedToken)
 		if err != nil {
-			log.Error("failed to generate refresh token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to generate refresh token")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -229,7 +229,7 @@ func New(a app.App) http.HandlerFunc {
 
 		refreshTokenHash, err := bcrypt.GenerateFromPassword([]byte(refreshToken), bcrypt.DefaultCost)
 		if err != nil {
-			log.Error("failed to hash refresh token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to hash refresh token")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -240,11 +240,11 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("new tokens generated", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("new tokens generated")
 
 		// Меняем статус refresh токена на "used"
 		if err := a.Storage.UpdateRefreshTokenStatus(claims.ID, "used"); err != nil {
-			log.Error("failed to update token status", logger.Err(err))
+			log.Error().Err(err).Msg("failed to update token status")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -255,18 +255,18 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("refresh token status updated", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("refresh token status updated")
 
 		// В случае смены ip отправляем письмо
 		if claims.ClientIp != r.RemoteAddr && a.Config.SMTP.IsEnabled {
 			if err := smtplib.SendEmail(a, user.Email, "IP address changed", "Your IP address has been changed. If it was not you, please contact us."); err != nil {
-				log.Error("failed to send email", logger.Err(err))
+				log.Error().Err(err).Msg("failed to send email")
 			} else {
-				log.Info("email notification sent", slog.Any("request", req))
+				log.Error().Err(err).Msg("email notification sent")
 			}
 		}
 
-		log.Info("client ip checked", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("client ip checked")
 
 		// Сохраняем новые токены в базе данных
 		if err := a.Storage.CreateToken(&models.Token{
@@ -279,7 +279,7 @@ func New(a app.App) http.HandlerFunc {
 			AccessTokenExpiresAt:  t1.Add(time.Duration(user.AccessTokenLifetimeMinutes) * time.Minute),
 			RefreshTokenExpiresAt: t1.Add(time.Duration(user.RefreshTokenLifetimeMinutes) * time.Minute),
 		}); err != nil {
-			log.Error("failed to create token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to create token")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -290,7 +290,7 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("new token created", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("new token created")
 
 		// Отправляем новые токены пользователю
 		w.WriteHeader(http.StatusCreated)

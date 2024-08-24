@@ -7,7 +7,7 @@ import (
 	"authenticationService/router"
 	smtplib "authenticationService/smtp"
 	"authenticationService/storage/postgres"
-	"log/slog"
+	//"log/slog"
 	"net/http"
 	smtp2 "net/smtp"
 
@@ -24,35 +24,35 @@ func main() {
 
 	log := logger.NewLogger(cfg.Env)
 
-	log.Info("Starting the application", slog.String("env", cfg.Env))
+	log.Info().Interface("env", cfg.Env).Msg("Starting the application")
 
 	storage, err := postgres.NewStorage(cfg.Storage)
 	if err != nil {
-		log.Error("failed to create storage", "error", err)
+		log.Error().Err(err).Msg("failed to create storage")
 		return
 	}
 
-	log.Info("Connected PostgreSQL successfully",
-		slog.String("host", cfg.Storage.Host),
-		slog.Int("port", cfg.Storage.Port),
-		slog.String("database", cfg.Storage.Database),
-	)
+	log.Info().
+    Str("host", cfg.Storage.Host).
+    Int("port", cfg.Storage.Port).
+    Str("database", cfg.Storage.Database).
+    Msg("Connected PostgreSQL successfully")
 
 	var smtp smtp2.Auth
 	if cfg.SMTP.IsEnabled {
 		smtp = smtplib.New(cfg.SMTP)
-		log.Info("Connected SMTP successfully")
+		log.Info().Msg("Connected SMTP successfully")
 	} else {
-		log.Info("SMTP is disabled")
+		log.Info().Msg("SMTP is disabled")
 	}
 
-	a := app.New(cfg, storage, log, smtp)
+	a := app.New(cfg, storage, &log, smtp)
 
 	router := server.New(*a)
 
-	log.Info("Server started", slog.String("address", cfg.Address))
+	log.Info().Interface("address", cfg.Address).Msg("Server started")
 	if err := http.ListenAndServe(cfg.Address, router); err != nil {
-		log.Error("failed to start server", "err", err)
+		log.Error().Err(err).Msg("failed to start server")
 		return
 	}
 

@@ -1,53 +1,57 @@
 package logger
 
 import (
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/phsym/console-slog"
-	"log/slog"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
-func NewLogger(env string) *slog.Logger {
-	var logger *slog.Logger
+// NewLogger initializes a new zerolog logger based on the environment.
+// It supports "local", "dev", and "prod" environments with different logging levels.
+func NewLogger(env string) zerolog.Logger {
+	var logger zerolog.Logger
 
 	switch env {
 	case "local":
-		logger = slog.New(console.NewHandler(os.Stdout, &console.HandlerOptions{Level: slog.LevelInfo, AddSource: true}))
+		logger = zerolog.New(os.Stdout).Output(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	case "dev":
-		logger = slog.New(console.NewHandler(os.Stdout, &console.HandlerOptions{Level: slog.LevelDebug, AddSource: true}))
+		logger = zerolog.New(os.Stdout).Output(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).With().Timestamp().Logger().Level(zerolog.DebugLevel)
 	case "prod":
-		logger = slog.New(console.NewHandler(os.Stdout, &console.HandlerOptions{Level: slog.LevelError}))
+		logger = zerolog.New(os.Stdout).With().Timestamp().Logger().Level(zerolog.ErrorLevel)
+	default:
+		logger = zerolog.New(os.Stdout).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	}
 
 	return logger
 }
 
-func MiddlewareLogger(log *slog.Logger) func(next http.Handler) http.Handler {
+// MiddlewareLogger returns a middleware that logs HTTP requests using zerolog.
+// It logs method, path, remote address, request ID, response status, size, and duration.
+func MiddlewareLogger(log zerolog.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		log = log.With(slog.String("component", "middleware/logger"))
-
-		log.Info("logger middleware initialized")
+		log.Info().Msg("logger middleware initialized")
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			logEntry := log.With(
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.String("remote_addr", r.RemoteAddr),
-				slog.String("request_id", middleware.GetReqID(r.Context())),
-			)
+			logEntry := log.With().
+				Str("method", r.Method).
+				Str("path", r.URL.Path).
+				Str("remote_addr", r.RemoteAddr).
+				Str("request_id", middleware.GetReqID(r.Context())).
+				Logger()
 
 			writer := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
-
 			timeStart := time.Now()
 
 			defer func() {
-				logEntry.Info("request completed",
-					slog.Int("status", writer.Status()),
-					slog.Int("size", writer.BytesWritten()),
-					slog.Duration("duration", time.Since(timeStart)),
-				)
+				logEntry.Info().
+					Int("status", writer.Status()).
+					Int("size", writer.BytesWritten()).
+					Dur("duration", time.Since(timeStart)).
+					Msg("request completed")
 			}()
 
 			next.ServeHTTP(writer, r)
@@ -55,9 +59,11 @@ func MiddlewareLogger(log *slog.Logger) func(next http.Handler) http.Handler {
 	}
 }
 
-func Err(err error) slog.Attr {
-	return slog.Attr{
-		Key:   "error",
-		Value: slog.StringValue(err.Error()),
+// Err returns a zerolog Event for logging errors.
+// This allows for consistent error logging across the application.
+func Err(err error) *zerolog.Event {
+	if err == nil {
+		return log.Error().Str("error", "unknown error")
 	}
+	return log.Error().Err(err)
 }

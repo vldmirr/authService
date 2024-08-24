@@ -3,10 +3,10 @@ package smtplib
 import (
 	"authenticationService/app"
 	"authenticationService/config"
-	"authenticationService/logger"
+	//"authenticationService/logger"
 	"crypto/tls"
 	"fmt"
-	"log/slog"
+	//"log/slog"
 	"net/smtp"
 )
 
@@ -23,9 +23,9 @@ func New(cfg config.SMTP) smtp.Auth {
 func SendEmail(a app.App, to, subject, body string) error {
 	const name_process = "smtp.SendEmail"
 
-	log := a.Logger.With(
-		slog.String("op", name_process),
-	)
+	log := a.Logger.With().
+    Str("name_process", name_process).
+    Logger()
 
 	subject = "Subject: " + subject
 
@@ -40,7 +40,7 @@ func SendEmail(a app.App, to, subject, body string) error {
 	defer func(conn *smtp.Client) {
 		err := conn.Quit()
 		if err != nil {
-			log.Error("error closing connection", logger.Err(err))
+			log.Error().Err(err).Msg("error closing connection")
 		}
 	}(conn)
 
@@ -80,7 +80,7 @@ func SendEmail(a app.App, to, subject, body string) error {
 		return fmt.Errorf("%s: error closing connection: %v", name_process, err)
 	}
 
-	log.Info("email sent successfully")
+	log.Info().Msg("email sent successfully")
 
 	return nil
 }

@@ -2,11 +2,11 @@ package user
 
 import (
 	"authenticationService/app"
-	"authenticationService/logger"
+	//"authenticationService/logger"
 	"authenticationService/models"
 	"encoding/json"
 	"fmt"
-	"log/slog"
+	//"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -41,16 +41,17 @@ func New(a app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const name_process = "handlers.auth.New"
 
-		log := a.Logger.With(
-			slog.String("handler", "createUser"),
-			slog.String("op", name_process),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
+		log := a.Logger.With().
+			Str("handler", "createUser").
+			Str("name_process", name_process).
+			Str("request_id", middleware.GetReqID(r.Context())).
+			Logger()
+		
 
 		var req Request
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			log.Error("failed to decode request", logger.Err(err))
+			log.Error().Err(err).Msg("failed to decode request")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -61,10 +62,10 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("request decoded", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("request decoded")
 
 		if err := validator.New().Struct(req); err != nil {
-			log.Error("failed to validate request", logger.Err(err))
+			log.Error().Err(err).Msg("failed to validate request")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -75,7 +76,7 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("request validated", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("request validated")
 
 		if req.MaxActiveTokenPairs == 0 {
 			req.MaxActiveTokenPairs = 5
@@ -98,7 +99,7 @@ func New(a app.App) http.HandlerFunc {
 
 		// Создаем пользователя в базе данных
 		if err := a.Storage.CreateUser(newUser); err != nil {
-			log.Error("failed to create user", logger.Err(err))
+			log.Error().Err(err).Msg("failed to create user")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -110,7 +111,7 @@ func New(a app.App) http.HandlerFunc {
 		}
 
 		// Возвращаем GUID созданного пользователя
-		log.Info("user created", slog.String("GUID", newUser.ID))
+		log.Info().Interface("GUID", newUser.ID).Msg("user created")
 
 		w.WriteHeader(http.StatusCreated)
 

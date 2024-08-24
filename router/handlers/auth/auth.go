@@ -3,13 +3,13 @@ package auth
 import (
 	"authenticationService/app"
 	jwtlib "authenticationService/jwt"
-	"authenticationService/logger"
+	//"authenticationService/logger"
 	"authenticationService/models"
 	"authenticationService/storage"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"log/slog"
+	//"log/slog"
 	"net/http"
 	"time"
 
@@ -42,16 +42,16 @@ func New(a app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		const name_process = "handlers.auth.New"
 
-		log := a.Logger.With(
-			slog.String("handler", "auth"),
-			slog.String("op", name_process),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
+		log := a.Logger.With().
+			Str("handler", "createUser").
+			Str("name_process", name_process).
+			Str("request_id", middleware.GetReqID(r.Context())).
+			Logger()
 
 		var req Request
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			log.Error("failed to decode request", logger.Err(err))
+			log.Error().Err(err).Msg("failed to decode request")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -62,10 +62,10 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("request decoded", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("request decoded")
 
 		if err := validator.New().Struct(req); err != nil {
-			log.Error("failed to validate request", logger.Err(err))
+			log.Error().Err(err).Msg("failed to validate request")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -76,14 +76,14 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("request validated", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("request validated")
 
 		// Проверяем, что пользователь с указанным GUID существует в базе данных
 		user, err := a.Storage.GetUserByID(req.GUID)
 		if err != nil {
 			switch {
 			case errors.Is(err, storage.ErrUserNotFound):
-				log.Error("user not found", "GUID", req.GUID)
+				log.Error().Str("GUID", req.GUID).Msg("user not found")
 
 				w.WriteHeader(http.StatusBadRequest)
 
@@ -91,8 +91,7 @@ func New(a app.App) http.HandlerFunc {
 					Error: "user not found",
 				})
 			default:
-				log.Error("failed to get user by ID", logger.Err(err))
-
+				log.Error().Err(err).Msg("failed to get user by ID")
 				w.WriteHeader(http.StatusInternalServerError)
 
 				render.JSON(w, r, Response{
@@ -105,7 +104,8 @@ func New(a app.App) http.HandlerFunc {
 
 		tokens, err := a.Storage.GetTokensByUserId(user.ID)
 		if err != nil {
-			log.Error("failed to get tokens by user ID", logger.Err(err))
+			
+			log.Error().Err(err).Msg("failed to get tokens by user ID")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -125,7 +125,7 @@ func New(a app.App) http.HandlerFunc {
 			}
 		}
 		if cntActiveAccessTokens >= user.MaxActiveTokenPairs {
-			log.Error("user has reached the maximum number of active token pairs", "user_id", user.ID)
+			log.Error().Str("user_id", user.ID).Msg("user has reached the maximum number of active token pairs")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -140,7 +140,7 @@ func New(a app.App) http.HandlerFunc {
 		newToken := jwtlib.NewJWT(r.RemoteAddr, t1.Add(time.Duration(user.AccessTokenLifetimeMinutes)*time.Minute))
 		signedToken, err := newToken.SignedString([]byte(a.Config.PrivateKey))
 		if err != nil {
-			log.Error("failed to sign access token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to sign access token")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -153,7 +153,7 @@ func New(a app.App) http.HandlerFunc {
 
 		refreshToken, err := jwtlib.GenerateRefreshToken(signedToken)
 		if err != nil {
-			log.Error("failed to generate refresh token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to generate refresh token")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -166,7 +166,7 @@ func New(a app.App) http.HandlerFunc {
 
 		refreshTokenHash, err := bcrypt.GenerateFromPassword([]byte(refreshToken), bcrypt.DefaultCost)
 		if err != nil {
-			log.Error("failed to hash refresh token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to hash refresh token")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -188,7 +188,7 @@ func New(a app.App) http.HandlerFunc {
 			AccessTokenExpiresAt:  t1.Add(time.Duration(user.AccessTokenLifetimeMinutes) * time.Minute),
 			RefreshTokenExpiresAt: t1.Add(time.Duration(user.RefreshTokenLifetimeMinutes) * time.Minute),
 		}); err != nil {
-			log.Error("failed to create token", logger.Err(err))
+			log.Error().Err(err).Msg("failed to create token")
 
 			w.WriteHeader(http.StatusInternalServerError)
 
@@ -199,7 +199,7 @@ func New(a app.App) http.HandlerFunc {
 			return
 		}
 
-		log.Info("token created", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("token created")
 
 		w.WriteHeader(http.StatusCreated)
 
@@ -209,7 +209,7 @@ func New(a app.App) http.HandlerFunc {
 			RefreshToken: base64.StdEncoding.EncodeToString([]byte(refreshToken)),
 		})
 
-		log.Info("response sent", slog.Any("request", req))
+		log.Info().Interface("request", req).Msg("response sent")
 
 		return
 	}

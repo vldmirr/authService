@@ -21,7 +21,7 @@ func New(a app.App) *chi.Mux {
 		middleware.RealIP,
 		middleware.Recoverer,
 		middleware.URLFormat,
-		logger.MiddlewareLogger(a.Logger),
+		logger.MiddlewareLogger(*a.Logger),
 	)
 
 	router.Post("/users", user.New(a))
